@@ -61,6 +61,10 @@ impl I18nString {
         self.0
     }
 
+    pub fn alloc(capacity: usize) -> Self {
+        Self(String::with_capacity(capacity))
+    }
+
     pub fn get_ref(&self) -> &String {
         &self.0
     }
@@ -71,8 +75,8 @@ impl I18nString {
 }
 
 impl I18nString {
-    pub fn alloc(capacity: usize) -> Self {
-        Self(String::with_capacity(capacity))
+    pub fn translate<R: Resolver>(&self, resolver: &R) -> Result<Cow<'_, str>, InvalidFormat> {
+        transform(&self.0, resolver)
     }
 }
 
