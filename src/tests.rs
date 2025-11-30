@@ -1,8 +1,8 @@
-use alloc::{borrow::Cow, string::String};
-use core::fmt::{Error, Write};
+use alloc::borrow::Cow;
+use core::fmt::Error;
 
 use crate::{
-    NoResolver, Resolver, Translatable,
+    I18nString, NoResolver, Resolver, Translatable,
     builder::{I18n, I18nBuilder, WantsTemplate},
 };
 
@@ -72,7 +72,7 @@ fn test_builder() {
     }
 
     impl I18n for I18nInnerError {
-        fn build_i18n<W: Write>(&self, builder: I18nBuilder<W, WantsTemplate>) -> Result<W, Error> {
+        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Result<(), Error> {
             match self {
                 I18nInnerError::IoError(msg) => builder.template("io error: {0}")?.arg_display(msg)?.finish(),
                 I18nInnerError::HasEscaped(msg) => builder.template("has escaped: \'{0}\'")?.arg_display(msg)?.finish(),
@@ -86,7 +86,7 @@ fn test_builder() {
     }
 
     impl I18n for I18nError {
-        fn build_i18n<W: Write>(&self, builder: I18nBuilder<W, WantsTemplate>) -> Result<W, Error> {
+        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Result<(), Error> {
             match self {
                 I18nError::InnerError(err) => builder.template("inner error: {0}")?.arg_i18n(err)?.finish(),
                 I18nError::InvalidFormat => builder.template("invalid format")?.finish(),
@@ -109,13 +109,14 @@ fn test_builder() {
     ];
 
     for (input, expected_template, expected) in cases {
-        let mut s = input.build_i18n(I18nBuilder::new(String::with_capacity(32))).unwrap();
+        let mut s = I18nString::alloc(64);
+        input.build_i18n(I18nBuilder::new(&mut s)).unwrap();
 
-        assert_eq!(s, expected_template);
+        assert_eq!(&*s, expected_template);
 
         s.translate_in_place(&NoResolver).unwrap();
 
-        assert_eq!(s, expected);
+        assert_eq!(&*s, expected);
     }
 }
 

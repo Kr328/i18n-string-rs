@@ -1,58 +1,53 @@
 use core::{fmt, marker::PhantomData};
 
-use crate::escape::Escaped;
+use crate::{I18nString, escape::Escaped};
 
 pub trait I18n {
-    fn build_i18n<W: fmt::Write>(&self, builder: I18nBuilder<W, WantsTemplate>) -> Result<W, fmt::Error>;
+    fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Result<(), fmt::Error>;
 }
 
 pub struct WantsTemplate;
 pub struct WantsArgs;
 
-pub struct I18nBuilder<W, S> {
-    write: W,
+pub struct I18nBuilder<'a, S> {
+    output: &'a mut I18nString,
     _state: PhantomData<S>,
 }
 
-impl<W> I18nBuilder<W, WantsTemplate> {
-    pub fn new(write: W) -> Self {
+impl<'a> I18nBuilder<'a, WantsTemplate> {
+    pub fn new(output: &'a mut I18nString) -> Self {
         Self {
-            write,
+            output,
             _state: PhantomData,
         }
     }
 }
 
-impl<W: fmt::Write> I18nBuilder<W, WantsTemplate> {
-    pub fn template(mut self, template: &str) -> Result<I18nBuilder<W, WantsArgs>, fmt::Error> {
-        self.write.write_str("t!('")?;
-        self.write.write_str(&super::escape::escape(template))?;
-        self.write.write_str("'")?;
+impl<'a> I18nBuilder<'a, WantsTemplate> {
+    pub fn template(self, template: &str) -> Result<I18nBuilder<'a, WantsArgs>, fmt::Error> {
+        self.output.get_mut().push_str("t!('");
+        self.output.get_mut().push_str(&super::escape::escape(template));
+        self.output.get_mut().push_str("'");
         Ok(I18nBuilder {
-            write: self.write,
+            output: self.output,
             _state: PhantomData,
         })
     }
 }
 
-impl<W: fmt::Write> I18nBuilder<W, WantsArgs> {
-    pub fn arg_i18n<Arg: I18n>(mut self, arg: &Arg) -> Result<Self, fmt::Error> {
-        self.write.write_str(",")?;
-        arg.build_i18n(I18nBuilder::new(&mut self.write))?;
+impl<'a> I18nBuilder<'a, WantsArgs> {
+    pub fn arg_i18n<Arg: I18n>(self, arg: &Arg) -> Result<I18nBuilder<'a, WantsArgs>, fmt::Error> {
+        self.output.get_mut().push_str(",");
+        arg.build_i18n(I18nBuilder::new(self.output))?;
         Ok(self)
     }
 
-    pub fn arg_fmt(mut self, format_args: fmt::Arguments) -> Result<Self, fmt::Error> {
+    pub fn arg_fmt(self, format_args: fmt::Arguments) -> Result<Self, fmt::Error> {
         use fmt::Write;
 
-        self.write.write_str(",'")?;
-        {
-            // to avoid recursive type reference
-            let mut escaped = Escaped::new(self.write);
-            escaped.write_fmt(format_args)?;
-            self.write = escaped.into_inner();
-        }
-        self.write.write_str("'")?;
+        self.output.get_mut().push_str(",'");
+        Escaped::new(self.output.get_mut()).write_fmt(format_args)?;
+        self.output.get_mut().push_str("'");
         Ok(self)
     }
 
@@ -65,9 +60,9 @@ impl<W: fmt::Write> I18nBuilder<W, WantsArgs> {
     }
 }
 
-impl<W: fmt::Write> I18nBuilder<W, WantsArgs> {
-    pub fn finish(mut self) -> Result<W, fmt::Error> {
-        self.write.write_str(")")?;
-        Ok(self.write)
+impl<'a> I18nBuilder<'a, WantsArgs> {
+    pub fn finish(self) -> Result<(), fmt::Error> {
+        self.output.get_mut().push_str(")");
+        Ok(())
     }
 }
