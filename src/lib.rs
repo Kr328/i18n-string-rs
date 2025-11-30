@@ -49,6 +49,7 @@ pub trait Translatable {
 }
 
 #[repr(transparent)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct I18nString(String);
 
 impl I18nString {
