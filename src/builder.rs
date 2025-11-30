@@ -1,6 +1,7 @@
+use alloc::string::String;
 use core::{fmt, marker::PhantomData};
 
-use crate::{I18nString, escape::Escaped};
+use crate::{I18nString, NoResolver, Resolver, Translatable, escape::Escaped};
 
 pub trait I18n {
     fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish;
@@ -9,6 +10,16 @@ pub trait I18n {
         let mut s = I18nString::alloc(64);
         self.build_i18n(I18nBuilder::new(&mut s));
         s
+    }
+
+    fn to_localized_string<R: Resolver>(&self, resolver: &R) -> String {
+        let mut s = self.to_i18n_string();
+        let _ = s.translate_in_place(resolver);
+        s.into_string()
+    }
+
+    fn to_no_localized_string(&self) -> String {
+        self.to_localized_string(&NoResolver)
     }
 }
 
