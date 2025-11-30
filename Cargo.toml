@@ -1,0 +1,17 @@
+[package]
+name = "kdm-i18n-string"
+version = "1.0.0"
+edition = "2024"
+
+[profile.release]
+opt-level = 3
+lto = true
+debug-assertions = false
+
+[features]
+std = []
+default = ["std"]
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { version = "1.0", optional = true, default-features = false, features = ["alloc"] }
