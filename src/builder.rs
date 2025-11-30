@@ -78,6 +78,25 @@ impl<'a> I18nBuilder<'a, WantsArgs> {
     pub fn arg_debug<Arg: fmt::Debug>(self, arg: &Arg) -> Self {
         self.arg_fmt(format_args!("{:?}", arg))
     }
+
+    pub fn arg_fmt_t(self, format_args: fmt::Arguments) -> Self {
+        use fmt::Write;
+
+        self.output.get_mut().push_str(",t!('");
+        Escaped::new(self.output.get_mut())
+            .write_fmt(format_args)
+            .expect("write_fmt failed");
+        self.output.get_mut().push_str("')");
+        self
+    }
+
+    pub fn arg_display_t<Arg: fmt::Display>(self, arg: &Arg) -> Self {
+        self.arg_fmt_t(format_args!("{}", arg))
+    }
+
+    pub fn arg_debug_t<Arg: fmt::Debug>(self, arg: &Arg) -> Self {
+        self.arg_fmt_t(format_args!("{:?}", arg))
+    }
 }
 
 impl<'a> I18nBuilder<'a, WantsArgs> {

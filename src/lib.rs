@@ -90,6 +90,12 @@ impl AsRef<str> for I18nString {
     }
 }
 
+impl Display for I18nString {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&transform::transform(&self.0, &NoResolver).unwrap_or(Cow::Borrowed(&self.0)))
+    }
+}
+
 #[cfg(feature = "serde")]
 impl serde::Serialize for I18nString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
