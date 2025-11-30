@@ -1,5 +1,5 @@
 [package]
-name = "kdm-i18n-string"
+name = "i18n-string"
 version = "1.0.0"
 edition = "2024"
 
