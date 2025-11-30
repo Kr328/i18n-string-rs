@@ -1,9 +1,8 @@
 use alloc::borrow::Cow;
-use core::fmt::Error;
 
 use crate::{
-    I18nString, NoResolver, Resolver, Translatable,
-    builder::{I18n, I18nBuilder, WantsTemplate},
+    NoResolver, Resolver, Translatable,
+    builder::{Finish, I18n, I18nBuilder, WantsTemplate},
 };
 
 struct SimpleResolver;
@@ -72,10 +71,10 @@ fn test_builder() {
     }
 
     impl I18n for I18nInnerError {
-        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Result<(), Error> {
+        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish {
             match self {
-                I18nInnerError::IoError(msg) => builder.template("io error: {0}")?.arg_display(msg)?.finish(),
-                I18nInnerError::HasEscaped(msg) => builder.template("has escaped: \'{0}\'")?.arg_display(msg)?.finish(),
+                I18nInnerError::IoError(msg) => builder.template("io error: {0}").arg_display(msg).finish(),
+                I18nInnerError::HasEscaped(msg) => builder.template("has escaped: \'{0}\'").arg_display(msg).finish(),
             }
         }
     }
@@ -86,10 +85,10 @@ fn test_builder() {
     }
 
     impl I18n for I18nError {
-        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Result<(), Error> {
+        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish {
             match self {
-                I18nError::InnerError(err) => builder.template("inner error: {0}")?.arg_i18n(err)?.finish(),
-                I18nError::InvalidFormat => builder.template("invalid format")?.finish(),
+                I18nError::InnerError(err) => builder.template("inner error: {0}").arg_i18n(err).finish(),
+                I18nError::InvalidFormat => builder.template("invalid format").finish(),
             }
         }
     }
@@ -109,8 +108,7 @@ fn test_builder() {
     ];
 
     for (input, expected_template, expected) in cases {
-        let mut s = I18nString::alloc(64);
-        input.build_i18n(I18nBuilder::new(&mut s)).unwrap();
+        let mut s = input.to_i18n_string();
 
         assert_eq!(&*s, expected_template);
 
