@@ -37,7 +37,7 @@ impl Resolver for NoResolver {
 
 pub fn transform<'s, R>(input: &'s str, resolver: &R) -> Result<Cow<'s, str>, InvalidFormat>
 where
-    R: Resolver,
+    R: Resolver + ?Sized,
 {
     transform::transform(input, resolver)
 }
@@ -45,7 +45,7 @@ where
 pub trait Translatable {
     fn translate_in_place<R>(&mut self, resolver: &R) -> Result<(), InvalidFormat>
     where
-        R: Resolver;
+        R: Resolver + ?Sized;
 }
 
 #[repr(transparent)]
@@ -75,7 +75,7 @@ impl I18nString {
 }
 
 impl I18nString {
-    pub fn translate<R: Resolver>(&self, resolver: &R) -> Result<Cow<'_, str>, InvalidFormat> {
+    pub fn translate<R: Resolver + ?Sized>(&self, resolver: &R) -> Result<Cow<'_, str>, InvalidFormat> {
         transform(&self.0, resolver)
     }
 }
@@ -124,7 +124,7 @@ impl<'de> serde::Deserialize<'de> for I18nString {
 impl Translatable for I18nString {
     fn translate_in_place<R>(&mut self, resolver: &R) -> Result<(), InvalidFormat>
     where
-        R: Resolver,
+        R: Resolver + ?Sized,
     {
         match transform(&*self, resolver)? {
             Cow::Owned(s) => self.0 = s,

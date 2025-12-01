@@ -2,13 +2,13 @@ use alloc::{borrow::Cow, string::String, vec::Vec};
 
 use crate::{InvalidFormat, Resolver};
 
-struct Transformer<'a, R: Resolver> {
+struct Transformer<'a, R: Resolver + ?Sized> {
     resolver: &'a R,
     input: &'a str,
     cursor: usize,
 }
 
-impl<'a, R: Resolver> Transformer<'a, R> {
+impl<'a, R: Resolver + ?Sized> Transformer<'a, R> {
     fn new(resolver: &'a R, input: &'a str) -> Self {
         Self {
             resolver,
@@ -211,7 +211,7 @@ impl<'a, R: Resolver> Transformer<'a, R> {
     }
 }
 
-pub fn transform<'s, R: Resolver>(input: &'s str, resolver: &R) -> Result<Cow<'s, str>, InvalidFormat> {
+pub fn transform<'s, R: Resolver + ?Sized>(input: &'s str, resolver: &R) -> Result<Cow<'s, str>, InvalidFormat> {
     if !input.contains("t!") {
         return Ok(Cow::Borrowed(input));
     }

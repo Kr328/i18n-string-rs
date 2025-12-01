@@ -12,7 +12,7 @@ pub trait I18n {
         s
     }
 
-    fn to_localized_string<R: Resolver>(&self, resolver: &R) -> String {
+    fn to_localized_string<R: Resolver + ?Sized>(&self, resolver: &R) -> String {
         let mut s = self.to_i18n_string();
         let _ = s.translate_in_place(resolver);
         s.into_string()
@@ -54,9 +54,15 @@ impl<'a> I18nBuilder<'a, WantsTemplate> {
 }
 
 impl<'a> I18nBuilder<'a, WantsArgs> {
-    pub fn arg_i18n<Arg: I18n>(self, arg: &Arg) -> Self {
+    pub fn arg_i18n<Arg: I18n + ?Sized>(self, arg: &Arg) -> Self {
         self.output.get_mut().push_str(",");
         arg.build_i18n(I18nBuilder::new(self.output));
+        self
+    }
+
+    pub fn arg_i18n_fn<F: FnOnce(I18nBuilder<WantsTemplate>) -> Finish>(self, f: F) -> Self {
+        self.output.get_mut().push_str(",");
+        f(I18nBuilder::new(self.output));
         self
     }
 
@@ -71,11 +77,11 @@ impl<'a> I18nBuilder<'a, WantsArgs> {
         self
     }
 
-    pub fn arg_display<Arg: fmt::Display>(self, arg: &Arg) -> Self {
+    pub fn arg_display<Arg: fmt::Display + ?Sized>(self, arg: &Arg) -> Self {
         self.arg_fmt(format_args!("{}", arg))
     }
 
-    pub fn arg_debug<Arg: fmt::Debug>(self, arg: &Arg) -> Self {
+    pub fn arg_debug<Arg: fmt::Debug + ?Sized>(self, arg: &Arg) -> Self {
         self.arg_fmt(format_args!("{:?}", arg))
     }
 
@@ -90,11 +96,11 @@ impl<'a> I18nBuilder<'a, WantsArgs> {
         self
     }
 
-    pub fn arg_display_t<Arg: fmt::Display>(self, arg: &Arg) -> Self {
+    pub fn arg_display_t<Arg: fmt::Display + ?Sized>(self, arg: &Arg) -> Self {
         self.arg_fmt_t(format_args!("{}", arg))
     }
 
-    pub fn arg_debug_t<Arg: fmt::Debug>(self, arg: &Arg) -> Self {
+    pub fn arg_debug_t<Arg: fmt::Debug + ?Sized>(self, arg: &Arg) -> Self {
         self.arg_fmt_t(format_args!("{:?}", arg))
     }
 }
