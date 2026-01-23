@@ -2,7 +2,7 @@ use alloc::borrow::Cow;
 
 use crate::{
     NoResolver, Resolver, Translatable,
-    builder::{Finish, I18n, I18nBuilder, WantsTemplate},
+    builder::{Finish, I18n, I18nBuilder, I18nExt, WantsTemplate},
 };
 
 struct SimpleResolver;

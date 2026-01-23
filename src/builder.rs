@@ -1,27 +1,8 @@
-use alloc::string::String;
+use alloc::rc::Rc;
 use core::{fmt, marker::PhantomData};
+use std::sync::Arc;
 
 use crate::{I18nString, NoResolver, Resolver, Translatable, escape::Escaped};
-
-pub trait I18n {
-    fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish;
-
-    fn to_i18n_string(&self) -> I18nString {
-        let mut s = I18nString::alloc(64);
-        self.build_i18n(I18nBuilder::new(&mut s));
-        s
-    }
-
-    fn to_localized_string<R: Resolver + ?Sized>(&self, resolver: &R) -> String {
-        let mut s = self.to_i18n_string();
-        let _ = s.translate_in_place(resolver);
-        s.into_string()
-    }
-
-    fn to_no_localized_string(&self) -> String {
-        self.to_localized_string(&NoResolver)
-    }
-}
 
 pub struct WantsTemplate;
 pub struct WantsArgs;
@@ -57,12 +38,6 @@ impl<'a> I18nBuilder<'a, WantsArgs> {
     pub fn arg_i18n<Arg: I18n + ?Sized>(self, arg: &Arg) -> Self {
         self.output.get_mut().push_str(",");
         arg.build_i18n(I18nBuilder::new(self.output));
-        self
-    }
-
-    pub fn arg_i18n_fn<F: FnOnce(I18nBuilder<WantsTemplate>) -> Finish>(self, f: F) -> Self {
-        self.output.get_mut().push_str(",");
-        f(I18nBuilder::new(self.output));
         self
     }
 
@@ -110,4 +85,56 @@ impl<'a> I18nBuilder<'a, WantsArgs> {
         self.output.get_mut().push_str(")");
         Finish(())
     }
+}
+
+pub trait I18n {
+    fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish;
+}
+
+macro_rules! impl_delegate {
+    ($typ:ty) => {
+        impl<I: I18n + ?Sized> I18n for $typ {
+            fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish {
+                I::build_i18n(&**self, builder)
+            }
+        }
+    };
+}
+
+impl_delegate!(&I);
+impl_delegate!(&mut I);
+impl_delegate!(Box<I>);
+impl_delegate!(Arc<I>);
+impl_delegate!(Rc<I>);
+
+pub trait I18nExt: I18n {
+    fn to_i18n_string(&self) -> I18nString {
+        let mut s = I18nString::alloc(64);
+        self.build_i18n(I18nBuilder::new(&mut s));
+        s
+    }
+
+    fn to_localized_string<R: Resolver + ?Sized>(&self, resolver: &R) -> String {
+        let mut s = self.to_i18n_string();
+        let _ = s.translate_in_place(resolver);
+        s.into_string()
+    }
+
+    fn to_no_localized_string(&self) -> String {
+        self.to_localized_string(&NoResolver)
+    }
+}
+
+impl<I: I18n + ?Sized> I18nExt for I {}
+
+pub struct FromFn<F>(pub F);
+
+impl<F: Fn(I18nBuilder<WantsTemplate>) -> Finish> I18n for FromFn<F> {
+    fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish {
+        self.0(builder)
+    }
+}
+
+pub fn from_fn<F: Fn(I18nBuilder<WantsTemplate>) -> Finish>(f: F) -> FromFn<F> {
+    FromFn(f)
 }
