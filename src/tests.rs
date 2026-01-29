@@ -6,7 +6,6 @@ use crate::{I18nString, Resolver};
 #[test]
 fn test_parse() {
     let cases = [
-        // 原始测试用例
         (
             "t!('pull {1} error: {0}', t!('resource changed'), '/file')",
             I18nString::template(
@@ -31,8 +30,6 @@ fn test_parse() {
         ),
         ("t!('No Args')", I18nString::template("No Args", [])),
         ("'just string'", I18nString::literal("just string")),
-        // 新增测试用例
-        // 多个参数的情况
         (
             "t!('{0} {1} {2} {3}', 'a', 'b', 'c', 'd')",
             I18nString::template(
@@ -45,24 +42,19 @@ fn test_parse() {
                 ],
             ),
         ),
-        // 包含反斜杠转义的情况
         (
             "t!('Path: {0}', 'C:\\\\Program Files')",
             I18nString::template("Path: {0}", [I18nString::literal("C:\\Program Files")]),
         ),
-        // 空字符串字面量
         (
             "t!('Empty: {0}', '')",
             I18nString::template("Empty: {0}", [I18nString::literal("")]),
         ),
-        // 空模板字符串
         ("t!('')", I18nString::template("", [])),
-        // 包含特殊字符的字符串
         (
             "t!('Special chars: {0}', '!@#$%^&*()_+-=[]{}|;:,.<>?')",
             I18nString::template("Special chars: {0}", [I18nString::literal("!@#$%^&*()_+-=[]{}|;:,.<>?")]),
         ),
-        // 更深层次的嵌套
         (
             "t!('Level 1: {0}', t!('Level 2: {0}', t!('Level 3: {0}', t!('Level 4'))))",
             I18nString::template(
@@ -73,7 +65,6 @@ fn test_parse() {
                 )],
             ),
         ),
-        // 多个嵌套参数
         (
             "t!('{0} and {1}', t!('Nested A'), t!('Nested B'))",
             I18nString::template(
@@ -81,7 +72,6 @@ fn test_parse() {
                 [I18nString::template("Nested A", []), I18nString::template("Nested B", [])],
             ),
         ),
-        // 包含数字和参数的复杂模板
         (
             "t!('Item {0} of {1}: {2}', '1', '10', t!('Description: {0}', 'Test'))",
             I18nString::template(
@@ -93,16 +83,12 @@ fn test_parse() {
                 ],
             ),
         ),
-        // 带有换行符转义的字符串
         ("t!('Line 1\\nLine 2')", I18nString::template("Line 1\nLine 2", [])),
-        // 带有制表符转义的字符串
         (
             "t!('Tab\\tSeparated\\tValues')",
             I18nString::template("Tab\tSeparated\tValues", []),
         ),
-        // 混合转义字符
         ("t!('Mix: \\'\\n\\t\\\\')", I18nString::template("Mix: '\n\t\\", [])),
-        // 复杂的参数顺序
         (
             "t!('{2}, {1}, {0}', 'third', 'second', 'first')",
             I18nString::template(
@@ -114,7 +100,6 @@ fn test_parse() {
                 ],
             ),
         ),
-        // 包含多个相同参数的模板
         (
             "t!('Hello {0}, welcome {0}!', 'Guest')",
             I18nString::template("Hello {0}, welcome {0}!", [I18nString::literal("Guest")]),

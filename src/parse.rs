@@ -61,14 +61,12 @@ impl<'s> Parser<'s> {
             if escaping {
                 escaping = false;
 
-                // 处理特殊转义序列
                 match c {
                     '\'' => ret.push('\''),
                     'n' => ret.push('\n'),
                     't' => ret.push('\t'),
                     '\\' => ret.push('\\'),
-                    // 其他转义序列可以在这里添加
-                    _ => ret.push(c), // 默认情况下，直接添加字符
+                    _ => ret.push(c),
                 }
             } else {
                 if c == '\'' {

@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
@@ -91,7 +92,7 @@ impl Resolver for NoResolver {
 ///     }
 /// }
 ///
-/// let s = I18nString::template("hello {0}, you are {1}", vec![I18nString::template("world", []), I18nString::literal("123")]);
+/// let s = I18nString::template("hello {0}, you are {1}", [I18nString::template("world", []), I18nString::literal("123")]);
 /// assert_eq!(s.translate(&SimpleResolver), "hello <translated world>, you are 123");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
@@ -128,8 +129,8 @@ impl I18nString {
     /// ```
     /// use i18n_string::I18nString;
     ///
-    /// let s = I18nString::template("hello {}", vec![I18nString::literal("world")]);
-    /// assert_eq!(s, I18nString::Template("hello {}".into(), vec![I18nString::Literal("world".into())].into_boxed_slice()));
+    /// let s = I18nString::template("hello {}", [I18nString::literal("world")]);
+    /// assert_eq!(s, I18nString::Template("hello {}".into(), [I18nString::Literal("world".into())].into()));
     /// ```
     pub fn template<S: Into<CompactString>, ARGS: IntoIterator<Item = I18nString>>(s: S, args: ARGS) -> Self {
         Self::Template(s.into(), args.into_iter().collect())
@@ -197,7 +198,7 @@ pub trait I18nStringTranslateExt {
     /// ```
     /// use i18n_string::{I18nString, I18nStringTranslateExt};
     ///
-    /// let s = I18nString::template("hello {0}", vec![I18nString::literal("world")]);
+    /// let s = I18nString::template("hello {0}", [I18nString::literal("world")]);
     /// assert_eq!(s.to_no_translate_string(), "hello world");
     /// ```
     fn to_no_translate_string(&self) -> String;
