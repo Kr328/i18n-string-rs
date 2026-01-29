@@ -114,9 +114,19 @@ impl<'s> Parser<'s> {
             Err(InvalidFormat)
         }
     }
+
+    fn parse_root(&mut self) -> Result<I18nString, InvalidFormat> {
+        let s = self.parse()?;
+        self.skip_whitespace();
+        if self.cursor >= self.input.len() {
+            Ok(s)
+        } else {
+            Err(InvalidFormat)
+        }
+    }
 }
 
 pub fn parse(input: &str) -> Result<I18nString, InvalidFormat> {
     let mut parser = Parser::new(input);
-    parser.parse()
+    parser.parse_root()
 }

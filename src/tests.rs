@@ -162,3 +162,15 @@ fn test_translate() {
         assert_eq!(output, expected);
     }
 }
+
+#[test]
+fn test_no_remaining() {
+    let cases = [
+        ("t!('Hello {0}', 'World')", false),
+        ("t!('Hello {0}', 'World') remaining", true),
+    ];
+    for (input, expected) in cases {
+        let is_err = I18nString::from_str(input).is_err();
+        assert_eq!(is_err, expected, "input: {input}");
+    }
+}
