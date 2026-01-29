@@ -16,7 +16,10 @@ i18n-string = "2.0.0"
 ### Basic Usage
 
 ```rust
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    str::FromStr,
+};
 
 use i18n_string::{I18nString, Resolver, I18nStringTranslateExt};
 
@@ -39,6 +42,9 @@ fn main() {
             I18nString::literal("123")
         ]
     );
+    // or create directly from template
+    let sd = I18nString::from_str("t!('hello {0}, you are {1}', t!('world'), '123')").unwrap();
+    assert_eq!(s, sd);
 
     println!("Original: {}", s.to_no_translate_string());
     println!("Translated: {}", s.translate(&SimpleResolver));
