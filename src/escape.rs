@@ -1,5 +1,6 @@
 use alloc::{borrow::Cow, string::String, vec::Vec};
 
+/// Escape special characters in a string to fit I18nString format.
 pub fn escape(input: &str) -> Cow<'_, str> {
     if !input.contains(['\'', '\\', '\n', '\t']) {
         return Cow::Borrowed(input);
@@ -18,6 +19,7 @@ pub fn escape(input: &str) -> Cow<'_, str> {
     Cow::Owned(output)
 }
 
+/// Escape special characters in a byte slice to fit I18nString format.
 pub fn escape_bytes(input: &[u8]) -> Cow<'_, [u8]> {
     if !input.iter().any(|&c| c == b'\'' || c == b'\\' || c == b'\n' || c == b'\t') {
         return Cow::Borrowed(input);
@@ -36,13 +38,16 @@ pub fn escape_bytes(input: &[u8]) -> Cow<'_, [u8]> {
     Cow::Owned(output)
 }
 
+/// A wrapper for a formatter that escapes special characters in I18nString format.
 pub struct Escaped<W>(pub W);
 
 impl<W> Escaped<W> {
+    /// Create a new `Escaped` formatter.
     pub fn new(write: W) -> Self {
         Self(write)
     }
 
+    /// Get the inner formatter.
     pub fn into_inner(self) -> W {
         self.0
     }

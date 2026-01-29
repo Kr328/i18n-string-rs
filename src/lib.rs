@@ -25,7 +25,8 @@ use core::{
 
 use compact_str::CompactString;
 
-#[derive(Debug, PartialEq, Eq)]
+/// Error type for invalid I18nString format.
+#[derive(Debug)]
 pub struct InvalidFormat;
 
 impl Display for InvalidFormat {
@@ -37,7 +38,9 @@ impl Display for InvalidFormat {
 #[cfg(feature = "std")]
 impl std::error::Error for InvalidFormat {}
 
+/// Trait for resolving translated I18nString templates.
 pub trait Resolver {
+    /// Resolve a template string.
     fn resolve<'s>(&'s self, template: &'s str) -> Cow<'s, str>;
 }
 
@@ -57,6 +60,8 @@ impl_resolver_delegate!(Box<T>);
 impl_resolver_delegate!(Arc<T>);
 impl_resolver_delegate!(Rc<T>);
 
+/// A resolver that does not resolve any templates.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NoResolver;
 
 impl Resolver for NoResolver {
@@ -65,18 +70,67 @@ impl Resolver for NoResolver {
     }
 }
 
+/// A string that can be translated into multiple languages.
+///
+/// # Examples
+///
+/// Basic example.
+/// ```
+/// use std::borrow::Cow;
+///
+/// use i18n_string::{I18nString, Resolver};
+///
+/// struct SimpleResolver;
+///
+/// impl Resolver for SimpleResolver {
+///     fn resolve<'s>(&'s self, template: &'s str) -> Cow<'s, str> {
+///         match template {
+///             "world" => Cow::Borrowed("<translated world>"),
+///             _ => template.into(),
+///         }
+///     }
+/// }
+///
+/// let s = I18nString::template("hello {0}, you are {1}", vec![I18nString::template("world", []), I18nString::literal("123")]);
+/// assert_eq!(s.translate(&SimpleResolver), "hello <translated world>, you are 123");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 #[non_exhaustive]
 pub enum I18nString {
+    /// A literal string.
     Literal(CompactString),
+    /// A template string.
     Template(CompactString, Box<[I18nString]>),
 }
 
 impl I18nString {
+    /// Create a new `I18nString::Literal` from a string.
+    ///
+    ///
+    /// # Examples
+    ///
+    /// Basic example.
+    /// ```
+    /// use i18n_string::I18nString;
+    ///
+    /// let s = I18nString::literal("hello");
+    /// assert_eq!(s, I18nString::Literal("hello".into()));
+    /// ```
     pub fn literal<S: Into<CompactString>>(s: S) -> Self {
         Self::Literal(s.into())
     }
 
+    /// Create a new `I18nString::Template` from a string and arguments.
+    ///
+    /// # Examples
+    ///
+    /// Basic example.
+    /// ```
+    /// use i18n_string::I18nString;
+    ///
+    /// let s = I18nString::template("hello {}", vec![I18nString::literal("world")]);
+    /// assert_eq!(s, I18nString::Template("hello {}".into(), vec![I18nString::Literal("world".into())].into_boxed_slice()));
+    /// ```
     pub fn template<S: Into<CompactString>, ARGS: IntoIterator<Item = I18nString>>(s: S, args: ARGS) -> Self {
         Self::Template(s.into(), args.into_iter().collect())
     }
@@ -133,7 +187,19 @@ impl<'de> serde::Deserialize<'de> for I18nString {
     }
 }
 
+/// Extension trait for `I18nString` to translate it into a no-translate string.
 pub trait I18nStringTranslateExt {
+    /// Translate the `I18nString` into a no-translate string.
+    ///
+    /// # Examples
+    ///
+    /// Basic example.
+    /// ```
+    /// use i18n_string::{I18nString, I18nStringTranslateExt};
+    ///
+    /// let s = I18nString::template("hello {0}", vec![I18nString::literal("world")]);
+    /// assert_eq!(s.to_no_translate_string(), "hello world");
+    /// ```
     fn to_no_translate_string(&self) -> String;
 }
 
@@ -143,10 +209,18 @@ impl I18nStringTranslateExt for I18nString {
     }
 }
 
+/// Extension trait for `I18nString` to build it from other types.
 pub trait I18nStringBuilderExt {
+    /// Create a new `I18nString::Literal` from a `Display` type.
     fn display<D: Display + ?Sized>(display: &D) -> Self;
+
+    /// Create a new `I18nString::Literal` from a `Debug` type.
     fn debug<D: Debug + ?Sized>(debug: &D) -> Self;
+
+    /// Create a new `I18nString::Template` from a `Display` type.
     fn template_display<D: Display + ?Sized>(display: &D) -> Self;
+
+    /// Create a new `I18nString::Template` from a `Debug` type.
     fn template_debug<D: Debug + ?Sized>(debug: &D) -> Self;
 }
 
