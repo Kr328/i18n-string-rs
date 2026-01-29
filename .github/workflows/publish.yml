@@ -19,6 +19,6 @@ jobs:
         id: auth
 
       - name: Publish to crates.io
-        run: cargo publish --package typed-jni-core --package typed-jni
+        run: cargo publish --package i18n-string
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
