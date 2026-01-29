@@ -1,21 +1,35 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
+extern crate core;
 
-pub mod builder;
 pub mod escape;
+mod format;
+mod parse;
 #[cfg(test)]
 mod tests;
-mod transform;
+mod translate;
 
-use alloc::{borrow::Cow, string::String};
-use core::{fmt::Display, ops::Deref};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    format,
+    rc::Rc,
+    string::{String, ToString},
+    sync::Arc,
+};
+use core::{
+    fmt::{Debug, Display, Formatter},
+    str::FromStr,
+};
+
+use compact_str::CompactString;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct InvalidFormat;
 
 impl Display for InvalidFormat {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "invalid format")
     }
 }
@@ -24,79 +38,61 @@ impl Display for InvalidFormat {
 impl std::error::Error for InvalidFormat {}
 
 pub trait Resolver {
-    fn resolve<'s>(&'s self, template: Cow<'s, str>) -> Cow<'s, str>;
+    fn resolve<'s>(&'s self, template: &'s str) -> Cow<'s, str>;
 }
+
+macro_rules! impl_resolver_delegate {
+    ($typ:ty) => {
+        impl<T: Resolver> Resolver for $typ {
+            fn resolve<'s>(&'s self, template: &'s str) -> Cow<'s, str> {
+                Resolver::resolve(&**self, template)
+            }
+        }
+    };
+}
+
+impl_resolver_delegate!(&T);
+impl_resolver_delegate!(&mut T);
+impl_resolver_delegate!(Box<T>);
+impl_resolver_delegate!(Arc<T>);
+impl_resolver_delegate!(Rc<T>);
 
 pub struct NoResolver;
 
 impl Resolver for NoResolver {
-    fn resolve<'s>(&'s self, template: Cow<'s, str>) -> Cow<'s, str> {
-        template
+    fn resolve<'s>(&'s self, template: &'s str) -> Cow<'s, str> {
+        template.into()
     }
 }
 
-pub fn transform<'s, R>(input: &'s str, resolver: &R) -> Result<Cow<'s, str>, InvalidFormat>
-where
-    R: Resolver + ?Sized,
-{
-    transform::transform(input, resolver)
-}
-
-pub trait Translatable {
-    fn translate_in_place<R>(&mut self, resolver: &R) -> Result<(), InvalidFormat>
-    where
-        R: Resolver + ?Sized;
-}
-
-#[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct I18nString(String);
-
-impl I18nString {
-    pub fn new(s: String) -> Self {
-        Self(s)
-    }
-
-    pub fn into_string(self) -> String {
-        self.0
-    }
-
-    pub fn alloc(capacity: usize) -> Self {
-        Self(String::with_capacity(capacity))
-    }
-
-    pub fn get_ref(&self) -> &String {
-        &self.0
-    }
-
-    pub fn get_mut(&mut self) -> &mut String {
-        &mut self.0
-    }
+#[non_exhaustive]
+pub enum I18nString {
+    Literal(CompactString),
+    Template(CompactString, Box<[I18nString]>),
 }
 
 impl I18nString {
-    pub fn translate<R: Resolver + ?Sized>(&self, resolver: &R) -> Result<Cow<'_, str>, InvalidFormat> {
-        transform(&self.0, resolver)
+    pub fn literal<S: Into<CompactString>>(s: S) -> Self {
+        Self::Literal(s.into())
+    }
+
+    pub fn template<S: Into<CompactString>, ARGS: IntoIterator<Item = I18nString>>(s: S, args: ARGS) -> Self {
+        Self::Template(s.into(), args.into_iter().collect())
     }
 }
 
-impl Deref for I18nString {
-    type Target = String;
+impl FromStr for I18nString {
+    type Err = InvalidFormat;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<str> for I18nString {
-    fn as_ref(&self) -> &str {
-        &self.0
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse::parse(s)
     }
 }
 
 impl Display for I18nString {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&transform::transform(&self.0, &NoResolver).unwrap_or(Cow::Borrowed(&self.0)))
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        format::format_to(f, self)
     }
 }
 
@@ -106,7 +102,7 @@ impl serde::Serialize for I18nString {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.0)
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -116,20 +112,58 @@ impl<'de> serde::Deserialize<'de> for I18nString {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        Ok(Self(s))
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = I18nString;
+
+            fn expecting(&self, formatter: &mut Formatter<'_>) -> core::fmt::Result {
+                formatter.write_str("a string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                value.parse().map_err(serde::de::Error::custom)
+            }
+        }
+
+        deserializer.deserialize_str(Visitor)
     }
 }
 
-impl Translatable for I18nString {
-    fn translate_in_place<R>(&mut self, resolver: &R) -> Result<(), InvalidFormat>
-    where
-        R: Resolver + ?Sized,
-    {
-        match transform(&*self, resolver)? {
-            Cow::Owned(s) => self.0 = s,
-            _ => {}
-        }
-        Ok(())
+pub trait I18nStringTranslateExt {
+    fn to_no_translate_string(&self) -> String;
+}
+
+impl I18nStringTranslateExt for I18nString {
+    fn to_no_translate_string(&self) -> String {
+        self.translate(NoResolver)
+    }
+}
+
+pub trait I18nStringBuilderExt {
+    fn display<D: Display + ?Sized>(display: &D) -> Self;
+    fn debug<D: Debug + ?Sized>(debug: &D) -> Self;
+    fn template_display<D: Display + ?Sized>(display: &D) -> Self;
+    fn template_debug<D: Debug + ?Sized>(debug: &D) -> Self;
+}
+
+impl I18nStringBuilderExt for I18nString {
+    fn display<D: Display + ?Sized>(display: &D) -> Self {
+        Self::literal(display.to_string())
+    }
+
+    fn debug<D: Debug + ?Sized>(debug: &D) -> Self {
+        Self::literal(format!("{:?}", debug))
+    }
+
+    fn template_display<D: Display + ?Sized>(display: &D) -> Self {
+        Self::template(display.to_string(), [])
+    }
+
+    fn template_debug<D: Debug + ?Sized>(debug: &D) -> Self {
+        Self::template(format!("{:?}", debug), [])
     }
 }

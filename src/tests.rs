@@ -1,134 +1,179 @@
-use alloc::borrow::Cow;
+use alloc::{borrow::Cow, format, string::ToString};
+use core::str::FromStr;
 
-use crate::{
-    NoResolver, Resolver, Translatable,
-    builder::{Finish, I18n, I18nBuilder, I18nExt, WantsTemplate},
-};
-
-struct SimpleResolver;
-
-impl Resolver for SimpleResolver {
-    fn resolve<'s>(&'s self, fmt: Cow<'s, str>) -> Cow<'s, str> {
-        match fmt.as_ref() {
-            "resource changed" => "资源变更".into(),
-            _ => fmt.into(),
-        }
-    }
-}
+use crate::{I18nString, Resolver};
 
 #[test]
-fn test_simple_i18n() {
-    let resolver = SimpleResolver;
-
+fn test_parse() {
     let cases = [
+        // 原始测试用例
         (
             "t!('pull {1} error: {0}', t!('resource changed'), '/file')",
-            "pull /file error: 资源变更",
+            I18nString::template(
+                "pull {1} error: {0}",
+                [I18nString::template("resource changed", []), I18nString::literal("/file")],
+            ),
         ),
-        ("t!('User {0} says: \\'Hello\\'!', 'Alice')", "User Alice says: 'Hello'!"),
+        (
+            "t!('User {0} says: \\'Hello\\'!', 'Alice')",
+            I18nString::template("User {0} says: \'Hello\'!", [I18nString::literal("Alice")]),
+        ),
         (
             "t!('Start -> {0} -> End', t!('Middle {0}', t!('Inner')))",
-            "Start -> Middle Inner -> End",
+            I18nString::template(
+                "Start -> {0} -> End",
+                [I18nString::template("Middle {0}", [I18nString::template("Inner", [])])],
+            ),
         ),
         (
-            "Error log: t!('File not found: {0}', 'config.json'). Please check.",
-            "Error log: File not found: config.json. Please check.",
+            "t!(  'Trim {0}'  ,  'test'  )",
+            I18nString::template("Trim {0}", [I18nString::literal("test")]),
         ),
-        ("t!(  'Trim {0}'  ,  'test'  )", "Trim test"),
-        // 边界测试：没有参数的 t!
-        ("t!('Just string')", "Just string"),
-        // 边界测试：嵌套与普通文本混合
-        ("Prefix t!('A') middle t!('B') suffix", "Prefix A middle B suffix"),
+        ("t!('No Args')", I18nString::template("No Args", [])),
+        ("'just string'", I18nString::literal("just string")),
+        // 新增测试用例
+        // 多个参数的情况
+        (
+            "t!('{0} {1} {2} {3}', 'a', 'b', 'c', 'd')",
+            I18nString::template(
+                "{0} {1} {2} {3}",
+                [
+                    I18nString::literal("a"),
+                    I18nString::literal("b"),
+                    I18nString::literal("c"),
+                    I18nString::literal("d"),
+                ],
+            ),
+        ),
+        // 包含反斜杠转义的情况
+        (
+            "t!('Path: {0}', 'C:\\\\Program Files')",
+            I18nString::template("Path: {0}", [I18nString::literal("C:\\Program Files")]),
+        ),
+        // 空字符串字面量
+        (
+            "t!('Empty: {0}', '')",
+            I18nString::template("Empty: {0}", [I18nString::literal("")]),
+        ),
+        // 空模板字符串
+        ("t!('')", I18nString::template("", [])),
+        // 包含特殊字符的字符串
+        (
+            "t!('Special chars: {0}', '!@#$%^&*()_+-=[]{}|;:,.<>?')",
+            I18nString::template("Special chars: {0}", [I18nString::literal("!@#$%^&*()_+-=[]{}|;:,.<>?")]),
+        ),
+        // 更深层次的嵌套
+        (
+            "t!('Level 1: {0}', t!('Level 2: {0}', t!('Level 3: {0}', t!('Level 4'))))",
+            I18nString::template(
+                "Level 1: {0}",
+                [I18nString::template(
+                    "Level 2: {0}",
+                    [I18nString::template("Level 3: {0}", [I18nString::template("Level 4", [])])],
+                )],
+            ),
+        ),
+        // 多个嵌套参数
+        (
+            "t!('{0} and {1}', t!('Nested A'), t!('Nested B'))",
+            I18nString::template(
+                "{0} and {1}",
+                [I18nString::template("Nested A", []), I18nString::template("Nested B", [])],
+            ),
+        ),
+        // 包含数字和参数的复杂模板
+        (
+            "t!('Item {0} of {1}: {2}', '1', '10', t!('Description: {0}', 'Test'))",
+            I18nString::template(
+                "Item {0} of {1}: {2}",
+                [
+                    I18nString::literal("1"),
+                    I18nString::literal("10"),
+                    I18nString::template("Description: {0}", [I18nString::literal("Test")]),
+                ],
+            ),
+        ),
+        // 带有换行符转义的字符串
+        ("t!('Line 1\\nLine 2')", I18nString::template("Line 1\nLine 2", [])),
+        // 带有制表符转义的字符串
+        (
+            "t!('Tab\\tSeparated\\tValues')",
+            I18nString::template("Tab\tSeparated\tValues", []),
+        ),
+        // 混合转义字符
+        ("t!('Mix: \\'\\n\\t\\\\')", I18nString::template("Mix: '\n\t\\", [])),
+        // 复杂的参数顺序
+        (
+            "t!('{2}, {1}, {0}', 'third', 'second', 'first')",
+            I18nString::template(
+                "{2}, {1}, {0}",
+                [
+                    I18nString::literal("third"),
+                    I18nString::literal("second"),
+                    I18nString::literal("first"),
+                ],
+            ),
+        ),
+        // 包含多个相同参数的模板
+        (
+            "t!('Hello {0}, welcome {0}!', 'Guest')",
+            I18nString::template("Hello {0}, welcome {0}!", [I18nString::literal("Guest")]),
+        ),
     ];
 
     for (input, expected) in cases {
-        let output = super::transform(input, &resolver).unwrap();
-
+        let output = I18nString::from_str(input).unwrap();
         assert_eq!(output, expected);
     }
 }
 
 #[test]
-#[cfg(feature = "std")]
-fn bench_simple_i18n() {
-    const N: usize = 1_000_000;
+fn test_format_and_parse() {
+    let cases = [
+        I18nString::literal("just string"),
+        I18nString::template("Hello {0}", [I18nString::literal("World")]),
+        I18nString::template("Hello {0} {1}", [I18nString::literal("World"), I18nString::literal("!")]),
+        I18nString::template("Nest {0}", [I18nString::template("Inner {0}", [I18nString::literal("Test")])]),
+        I18nString::template("Empty: {0}", [I18nString::literal("")]),
+        I18nString::template("Special chars: {0}", [I18nString::literal("!@#$%^&*()_+-=[]{}|;:,.<>?")]),
+        I18nString::template("Newline: {0}\n", [I18nString::literal("\n")]),
+    ];
 
-    let begin_at = std::time::Instant::now();
-
-    for _ in 0..N {
-        std::hint::black_box(test_simple_i18n());
+    for case in cases {
+        let formatted = case.to_string();
+        let parsed = I18nString::from_str(&formatted).expect(&format!("Failed to parse formatted string: {formatted}"));
+        assert_eq!(parsed, case);
     }
-
-    let elapsed = begin_at.elapsed();
-    println!("bench_simple_i18n: {:?}", elapsed / N as u32);
 }
 
 #[test]
-fn test_builder() {
-    enum I18nInnerError {
-        IoError(&'static str),
-        HasEscaped(&'static str),
-    }
+fn test_translate() {
+    struct SimpleResolver;
 
-    impl I18n for I18nInnerError {
-        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish {
-            match self {
-                I18nInnerError::IoError(msg) => builder.template("io error: {0}").arg_display(msg).finish(),
-                I18nInnerError::HasEscaped(msg) => builder.template("has escaped: \'{0}\'").arg_display(msg).finish(),
-            }
-        }
-    }
-
-    enum I18nError {
-        InnerError(I18nInnerError),
-        InvalidFormat,
-    }
-
-    impl I18n for I18nError {
-        fn build_i18n(&self, builder: I18nBuilder<WantsTemplate>) -> Finish {
-            match self {
-                I18nError::InnerError(err) => builder.template("inner error: {0}").arg_i18n(err).finish(),
-                I18nError::InvalidFormat => builder.template("invalid format").finish(),
+    impl Resolver for SimpleResolver {
+        fn resolve<'s>(&'s self, fmt: &'s str) -> Cow<'s, str> {
+            match fmt.as_ref() {
+                "resource changed" => "资源变更".into(),
+                "io error: {0}" => "IO 错误: {0}".into(),
+                _ => fmt.into(),
             }
         }
     }
 
     let cases = [
+        ("t!('resource changed')", "资源变更"),
+        ("t!('io error: {0}', 'file not found')", "IO 错误: file not found"),
+        ("t!('Empty: {0}', '')", "Empty: "),
         (
-            I18nError::InnerError(I18nInnerError::IoError("test")),
-            "t!('inner error: {0}',t!('io error: {0}','test'))",
-            "inner error: io error: test",
+            "t!('Special chars: {0}', '!@#$%^&*()_+-=[]{}|;:,.<>?')",
+            "Special chars: !@#$%^&*()_+-=[]{}|;:,.<>?",
         ),
-        (
-            I18nError::InnerError(I18nInnerError::HasEscaped("\\test")),
-            "t!('inner error: {0}',t!('has escaped: \\'{0}\\'','\\\\test'))",
-            "inner error: has escaped: '\\test'",
-        ),
-        (I18nError::InvalidFormat, "t!('invalid format')", "invalid format"),
+        ("t!('Newline: {0}\n', '\n')", "Newline: \n\n"),
     ];
 
-    for (input, expected_template, expected) in cases {
-        let mut s = input.to_i18n_string();
-
-        assert_eq!(&*s, expected_template);
-
-        s.translate_in_place(&NoResolver).unwrap();
-
-        assert_eq!(&*s, expected);
+    let resolver = SimpleResolver;
+    for (input, expected) in cases {
+        let output = I18nString::from_str(input).unwrap().translate(&resolver);
+        assert_eq!(output, expected);
     }
-}
-
-#[test]
-#[cfg(feature = "std")]
-fn bench_builder() {
-    const N: usize = 100_000;
-
-    let begin_at = std::time::Instant::now();
-
-    for _ in 0..N {
-        std::hint::black_box(test_builder());
-    }
-
-    let elapsed = begin_at.elapsed();
-    println!("bench_builder: {:?}", elapsed / N as u32);
 }

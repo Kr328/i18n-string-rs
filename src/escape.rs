@@ -1,7 +1,7 @@
 use alloc::{borrow::Cow, string::String, vec::Vec};
 
 pub fn escape(input: &str) -> Cow<'_, str> {
-    if !input.contains(['\'', '\\']) {
+    if !input.contains(['\'', '\\', '\n', '\t']) {
         return Cow::Borrowed(input);
     }
 
@@ -10,6 +10,8 @@ pub fn escape(input: &str) -> Cow<'_, str> {
         match c {
             '\'' => output.push_str("\\'"),
             '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\t' => output.push_str("\\t"),
             _ => output.push(c),
         }
     }
@@ -17,7 +19,7 @@ pub fn escape(input: &str) -> Cow<'_, str> {
 }
 
 pub fn escape_bytes(input: &[u8]) -> Cow<'_, [u8]> {
-    if !input.contains(&b'\'') && !input.contains(&b'\\') {
+    if !input.iter().any(|&c| c == b'\'' || c == b'\\' || c == b'\n' || c == b'\t') {
         return Cow::Borrowed(input);
     }
 
@@ -26,6 +28,8 @@ pub fn escape_bytes(input: &[u8]) -> Cow<'_, [u8]> {
         match c {
             b'\'' => output.extend_from_slice(b"\\'"),
             b'\\' => output.extend_from_slice(b"\\\\"),
+            b'\n' => output.extend_from_slice(b"\\n"),
+            b'\t' => output.extend_from_slice(b"\\t"),
             _ => output.push(c),
         }
     }
@@ -53,6 +57,8 @@ impl<W: core::fmt::Write> core::fmt::Write for Escaped<W> {
         match c {
             '\'' => self.0.write_str("\\'"),
             '\\' => self.0.write_str("\\\\"),
+            '\n' => self.0.write_str("\\n"),
+            '\t' => self.0.write_str("\\t"),
             _ => self.0.write_char(c),
         }
     }
