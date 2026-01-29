@@ -10,7 +10,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-i18n-string = "2.0.0"
+i18n-string = "2.0"
 ```
 
 ### Basic Usage
